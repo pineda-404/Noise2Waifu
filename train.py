@@ -22,6 +22,8 @@ class AnimeDataset(Dataset):
         ]
 
         if not self.paths:
+            if data_dir:
+                print(f"Aviso: No se encontraron imagenes en '{data_dir}'. Usando dataset dummy.")
             os.makedirs("data/dummy", exist_ok=True)
             self.paths = [os.path.join("data/dummy", f"dummy_{i:03d}.png") for i in range(64)]
             for i, p in enumerate(self.paths):
@@ -66,13 +68,14 @@ def train():
     dataset = AnimeDataset(data_dir=args.data_dir, max_images=args.max_images)
     print(f"Total imagenes cargadas: {len(dataset)}")
 
+    batch_size = min(args.batch_size, len(dataset))
     dataloader = DataLoader(
         dataset,
-        batch_size=args.batch_size,
+        batch_size=batch_size,
         shuffle=True,
         num_workers=2,
         pin_memory=(device.type == "cuda"),
-        drop_last=True
+        drop_last=(len(dataset) >= batch_size)
     )
 
     first_batch = next(iter(dataloader))
