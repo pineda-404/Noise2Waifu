@@ -53,6 +53,14 @@ class GaussianDiffusion(nn.Module):
             "posterior_var",
             betas * (1.0 - alphas_cumprod_prev) / (1.0 - alphas_cumprod),
         )
+        self.register_buffer(
+            "posterior_mean_coef1",
+            betas * torch.sqrt(alphas_cumprod_prev) / (1.0 - alphas_cumprod),
+        )
+        self.register_buffer(
+            "posterior_mean_coef2",
+            (1.0 - alphas_cumprod_prev) * torch.sqrt(alphas) / (1.0 - alphas_cumprod),
+        )
 
     def q_sample(
         self, x_start: torch.Tensor, t: torch.Tensor, noise: torch.Tensor = None
@@ -86,11 +94,11 @@ class GaussianDiffusion(nn.Module):
     def p_sample(self, model: nn.Module, x: torch.Tensor, t_idx: int) -> torch.Tensor:
         t = torch.full((x.shape[0],), t_idx, device=x.device, dtype=torch.long)
         eps = model(x, t)
-        alpha = extract(self.alphas, t, x.shape)
-        beta = extract(self.betas, t, x.shape)
-        sqrt_om = extract(self.sqrt_one_minus_alphas_cumprod, t, x.shape)
+        x0_pred = self.predict_x0(x, t, eps)
+        coef1 = extract(self.posterior_mean_coef1, t, x.shape)
+        coef2 = extract(self.posterior_mean_coef2, t, x.shape)
 
-        mean = (1.0 / torch.sqrt(alpha)) * (x - (beta / sqrt_om) * eps)
+        mean = coef1 * x0_pred + coef2 * x
         if t_idx == 0:
             return mean
         var = extract(self.posterior_var, t, x.shape)
