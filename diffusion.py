@@ -175,6 +175,14 @@ class EMA:
 
 
 if __name__ == "__main__":
+    import argparse
+    from PIL import Image
+    from torchvision import transforms
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data_dir", type=str, default="")
+    args = parser.parse_args()
+
     os.makedirs("outputs/figures", exist_ok=True)
     timesteps = 1000
 
@@ -207,18 +215,33 @@ if __name__ == "__main__":
     schedules_path = "outputs/figures/schedules_comparison.png"
     plt.savefig(schedules_path, dpi=300, bbox_inches="tight")
     plt.close()
-    print(f" Grafica guardada en: {schedules_path}")
+    print(f"Grafica guardada en: {schedules_path}")
 
     # 2. Forward Process visual en t = [0, 250, 500, 750, 999]
     torch.manual_seed(42)
-    x = torch.linspace(-1, 1, 64).repeat(64, 1)
-    y = torch.linspace(-1, 1, 64).unsqueeze(1).repeat(1, 64)
-    r = torch.sqrt(x**2 + y**2)
-    base = (
-        torch.stack([torch.sin(r * 4.0), torch.cos(x * 3.0), torch.sin(y * 3.0)])
-        .unsqueeze(0)
-        .clamp(-1.0, 1.0)
-    )
+    img_paths = [
+        os.path.join(r, f)
+        for r, _, files in os.walk(args.data_dir or "")
+        for f in sorted(files)
+        if os.path.splitext(f)[1].lower() in {".jpg", ".jpeg", ".png"}
+    ]
+
+    if img_paths:
+        tf = transforms.Compose([
+            transforms.Resize((64, 64)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5] * 3, [0.5] * 3),
+        ])
+        base = tf(Image.open(img_paths[0]).convert("RGB")).unsqueeze(0)
+    else:
+        x = torch.linspace(-1, 1, 64).repeat(64, 1)
+        y = torch.linspace(-1, 1, 64).unsqueeze(1).repeat(1, 64)
+        r = torch.sqrt(x**2 + y**2)
+        base = (
+            torch.stack([torch.sin(r * 4.0), torch.cos(x * 3.0), torch.sin(y * 3.0)])
+            .unsqueeze(0)
+            .clamp(-1.0, 1.0)
+        )
 
     steps_to_show = [0, 250, 500, 750, 999]
     diff = GaussianDiffusion(timesteps=timesteps, schedule="cosine")
@@ -236,4 +259,4 @@ if __name__ == "__main__":
         normalize=True,
         value_range=(-1, 1),
     )
-    print(f" Tira de forward process guardada en: {forward_path}")
+    print(f"Tira de forward process guardada en: {forward_path}")
